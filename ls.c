@@ -5,6 +5,7 @@
 #include <sys/ioctl.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>  
 char* filename[1000000];
 int filenameLen[1000000];
 int widthPerColumn[48];
@@ -44,27 +45,51 @@ int cmp ( const void *a , const void *b )
 } 
 void display(int numFile){
 	int row = 1;
-	int column = 0;
-	memset(widthPerColumn,0,sizeof(widthPerColumn));
-	int i = 0;
-	while(i < numFile){
-		for(int j = 0;j < row;j++){
-			if(i < numFile){
-				if(widthPerColumn[column] < filenameLen[i])
-					widthPerColumn[column] = filenameLen[i];
-				i++;
-	
+	struct winsize ws;  
+	if (ioctl(0,TIOCGWINSZ,&ws)!=0) {
+		    
+		      fprintf(stderr,"TIOCGWINSZ:%s/n",strerror(errno));  
+			      exit(1);  
+	}  
+	while(1){
+		memset(widthPerColumn,0,sizeof(widthPerColumn));
+		int column = 0;
+		int i = 0;
+		while(i < numFile){
+			for(int j = 0;j < row;j++){
+				if(i < numFile){
+					if(widthPerColumn[column] < filenameLen[i])
+						widthPerColumn[column] = filenameLen[i];
+					i++;
+		
+				}
+				else
+					break;
 			}
-			else
-				break;
+			column++;
 		}
-		column++;
+		int sum = 0;
+		for(int j = 0;j < column;j++){
+			sum += widthPerColumn[j]+2;
+		}
+		if(sum <= ws.ws_col){
+			for(int j = 0;j < row;j++){
+				for(int k = 0;k < column;k++){
+					if(k * row + j < numFile){
+						printf("%s  ",filename[k * row + j]);
+						for(int t = 0;t < widthPerColumn[k] - filenameLen[k*row+j];t++)
+							printf(" ");
+					}
+
+				}
+				printf("\n");
+			}
+			return;
+		}
+		else row++;
+
 	}
-	printf("%d\n",column);
-	int sum = 0;
-	for(int j = 0;j < column;j++){
-		sum += widthPerColumn[j];
-	}
+	
 
 }
 void do_ls(char* path){
@@ -95,9 +120,27 @@ void do_ls(char* path){
 main(int ac,char* av[]){
 	if(ac == 1)
 		do_ls(".");
-	else
+	else{
+		int isL = false;
+		int numDir = 0;
+		for(int i = 1;i < ac;i++){
+			if(av[i] == "-l")
+				isL = true;
+			else
+				numDir++;
+		}
 		while(--ac){
 			//printf("%s\n",*(++av));
-			do_ls(*(++av));
+			av++;
+			if(numDir > 1)
+				printf("%s:\n",*av);
+			if(*av != "-l"){
+				if(!isL)
+					do_ls(*av);
+			}
+			if(ac != 1)
+				printf("\n");
 		}
+	}
+
 }
